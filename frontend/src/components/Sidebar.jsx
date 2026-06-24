@@ -65,7 +65,7 @@ export default function Sidebar({
             items: [
               { label: 'POS Checkout', path: '/checkout', icon: <POSIcon /> },
               { label: 'Held Bills', path: '/held-bills', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, badge: heldBillsCount },
-              { label: 'Manual Orders', path: '/manual-orders', icon: <ManualOrdersIcon /> },
+              { label: 'Sales Orders', path: '/manual-orders', icon: <ManualOrdersIcon /> },
               { label: 'Sales History', path: '/sales', icon: <ReportsIcon /> },
               { label: 'Product Returns', path: '/returns', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-3a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m-9 5h1a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg> }
             ]

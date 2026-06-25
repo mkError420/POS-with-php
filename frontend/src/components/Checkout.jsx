@@ -29,8 +29,6 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
   const [currentUser, setCurrentUser] = useState(null);
   const [taxRate, setTaxRate] = useState(0.10); // Dynamic Tax Rate (default 10%)
 
-  const [reduceDueAmount, setReduceDueAmount] = useState(0);
-  
   // UI States
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -196,7 +194,7 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
     if (!activeTab?.isPaidTouched) {
       updateActiveTabState('paidAmount', getFinalTotal().toFixed(2));
     }
-  }, [activeTab?.cart, activeTab?.discountPercent, taxRate, activeTab?.isPaidTouched]);
+  }, [activeTab?.cart, activeTab?.discountPercent, taxRate, activeTab?.isPaidTouched, activeTab?.reduceDueAmount]);
 
   // --- HELPER FUNCTIONS ---
   
@@ -886,7 +884,7 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
       )}
 
       {/* --- RECEIPT PREVIEW & PRINT MODAL --- */}
-      {receipt && (
+      {receipt && activeTab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
 
@@ -1096,7 +1094,7 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
                   <span className="text-sm font-bold tracking-tight">Checkout Completed</span>
                 </div>
                 
-                <h3 className="text-lg font-extrabold text-slate-800">Print Receipt for {activeTab.name}</h3>
+                <h3 className="text-lg font-extrabold text-slate-800">Print Receipt for {activeTab?.name || 'Sale'}</h3>
                 <p className="text-xs text-slate-500 mt-1">Transaction recorded successfully. Preview and choose formatting layout below:</p>
 
                 {/* Print Layout Selector */}
@@ -1591,19 +1589,49 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
               Customer Details
             </h4>
 
-            {activeTab.selectedCustomerId && (() => {
-              const selected = customers.find(c => c.id === parseInt(activeTab.selectedCustomerId));
-              const balance = parseFloat(selected?.due_balance || 0);
-              if (balance > 0) {
-                return (
-                  <div className="bg-rose-50 border border-rose-100 rounded-lg p-2 flex items-center justify-between text-xs text-rose-700">
-                    <span className="font-medium">Outstanding Due Balance:</span>
-                    <span className="font-bold">৳{balance.toFixed(2)}</span>
-                  </div>
-                );
-              }
-              return null;
-            })()}
+{activeTab.selectedCustomerId && (() => {
+               const selected = customers.find(c => c.id === parseInt(activeTab.selectedCustomerId));
+               const balance = parseFloat(selected?.due_balance || 0);
+               const reduceDue = parseFloat(activeTab.reduceDueAmount || 0);
+               if (balance > 0) {
+                 return (
+                   <div className="bg-rose-50 border border-rose-100 rounded-lg p-2 space-y-2 text-xs text-rose-700">
+                     <div className="flex justify-between">
+                       <span className="font-medium">Outstanding Due Balance:</span>
+                       <span className="font-bold">৳{balance.toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between items-center pt-1 border-t border-rose-200">
+                       <span className="font-medium">Collect Due Payment:</span>
+                       <div className="flex items-center space-x-2">
+                         <input
+                           type="number"
+                           min="0"
+                           step="0.01"
+                           max={balance}
+                           value={reduceDue > 0 ? reduceDue : ''}
+                           onChange={(e) => {
+                             const val = parseFloat(e.target.value) || 0;
+                             const cappedVal = Math.min(val, balance);
+                             updateActiveTabState('reduceDueAmount', cappedVal);
+                             updateActiveTabState('paidAmount', '');
+                             updateActiveTabState('isPaidTouched', false);
+                           }}
+                           placeholder="0.00"
+                           className="w-24 border border-rose-300 rounded px-2 py-1 text-right font-semibold text-rose-700 bg-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                         />
+                         <span className="text-[11px] font-bold">৳</span>
+                       </div>
+                     </div>
+                     {reduceDue > 0 && (
+                       <div className="text-[10px] text-rose-600 text-right">
+                         Applied: ৳{reduceDue.toFixed(2)} from due balance
+                       </div>
+                     )}
+                   </div>
+                 );
+               }
+               return null;
+             })()}
 
             <div className="grid grid-cols-1 gap-2">
               <div>
@@ -1788,30 +1816,30 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
               <span className="font-semibold">৳{getTax().toFixed(2)}</span>
             </div>
 
-            {parseFloat(reduceDueAmount || 0) > 0 && (
-              <div className="flex justify-between items-center bg-rose-50 border border-rose-100 rounded-lg p-2.5 text-rose-800 font-medium">
-                <span className="flex items-center">
-                  <svg className="w-3.5 h-3.5 mr-1 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  Due Balance Payment
-                </span>
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-bold">৳{parseFloat(reduceDueAmount).toFixed(2)}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReduceDueAmount(0);
-                      setIsPaidTouched(false);
-                    }}
-                    className="text-rose-400 hover:text-rose-600 font-extrabold text-sm px-1"
-                    title="Remove Due Payment"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            )}
+{parseFloat(activeTab.reduceDueAmount || 0) > 0 && (
+               <div className="flex justify-between items-center bg-rose-50 border border-rose-100 rounded-lg p-2.5 text-rose-800 font-medium">
+                 <span className="flex items-center">
+                   <svg className="w-3.5 h-3.5 mr-1 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                   </svg>
+                   Due Balance Payment
+                 </span>
+                 <div className="flex items-center space-x-1.5">
+                   <span className="font-bold">৳{parseFloat(activeTab.reduceDueAmount).toFixed(2)}</span>
+                   <button
+                     type="button"
+                     onClick={() => {
+                       updateActiveTabState('reduceDueAmount', 0);
+                       updateActiveTabState('isPaidTouched', false);
+                     }}
+                     className="text-rose-400 hover:text-rose-600 font-extrabold text-sm px-1"
+                     title="Remove Due Payment"
+                   >
+                     ×
+                   </button>
+                 </div>
+               </div>
+             )}
 
             <div className="flex justify-between text-base font-extrabold text-slate-800 border-t border-slate-200/60 pt-2">
               <span>Final Total</span>

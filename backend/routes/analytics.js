@@ -400,5 +400,41 @@ router.get('/', async (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * @route   GET /api/analytics/daily-products
+ * @desc    Fetch aggregated product sales data for a given date range
+ * @access  Private (shop_admin)
+ */
+router.get('/daily-products', authorize(['shop_admin']), async (req, res) => {
+  const shopId = req.shopId;
+  const { start_date, end_date } = req.query;
 
+  if (!start_date || !end_date) {
+    return res.status(400).json({ error: 'Please provide both a start and end date.' });
+  }
+
+  try {
+    const sql = `
+      SELECT 
+        p.id as product_id,
+        p.name as product_name,
+        p.sku as product_sku,
+        SUM(si.quantity) as total_quantity_sold,
+        SUM(si.subtotal) as total_revenue
+      FROM sale_items si
+      JOIN products p ON si.product_id = p.id
+      JOIN sales s ON si.sale_id = s.id
+      WHERE si.shop_id = ? AND DATE(s.created_at) BETWEEN ? AND ?
+      GROUP BY p.id, p.name, p.sku
+      ORDER BY total_quantity_sold DESC
+    `;
+
+    const [productSales] = await db.query(sql, [shopId, start_date, end_date]);
+    res.json(productSales);
+  } catch (error) {
+    console.error('Fetch daily product sales error:', error);
+    res.status(500).json({ error: 'Server error retrieving daily product sales.' });
+  }
+});
+
+module.exports = router;

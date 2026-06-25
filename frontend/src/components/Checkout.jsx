@@ -510,7 +510,8 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
 
       const payloadItems = activeTab.cart.map(item => ({
         product_id: item.id,
-        quantity: item.quantity
+        quantity: item.quantity,
+        product_name: item.name
       }));
 
       const payload = {
@@ -669,6 +670,56 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
     } catch (err) {
       triggerAlert('error', err.message);
     }
+  };
+
+  const exportHeldBillsToCSV = () => {
+    const heldOnly = heldBills.filter(b => b.status === 'held');
+    if (heldOnly.length === 0) {
+      triggerAlert('error', 'No held bills to export.');
+      return;
+    }
+
+    const headers = ['Held Bill ID', 'Date Held', 'Reference Note', 'Customer', 'Cashier', 'Items', 'Due Amount'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = heldOnly.map(bill => {
+      let itemsList = [];
+      try {
+        itemsList = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items;
+      } catch (e) { /* ignore */ }
+      const itemsString = itemsList.map(item => `${item.product_name || 'Item'} (x${item.quantity})`).join('; ');
+
+      return [
+        bill.id,
+        `"${new Date(bill.created_at).toLocaleString()}"`,
+        escapeCSV(bill.notes || ''),
+        escapeCSV(bill.customer_name || 'Walk-in'),
+        escapeCSV(bill.staff_name || 'N/A'),
+        escapeCSV(itemsString),
+        parseFloat(bill.due_amount || 0).toFixed(2)
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `held_bills_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerAlert('success', 'Held bills exported successfully!');
   };
 
   const addSaleTab = () => {
@@ -1480,12 +1531,21 @@ export default function Checkout({ onHeldBillsChange = () => {}, resumedHeldBill
       {/* --- RESUME HELD BILLS MODAL --- */}
       {showHeldBillsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Resume Held Bills</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Select a suspended cart to load back into checkout</p>
               </div>
+              <button
+                onClick={exportHeldBillsToCSV}
+                className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 border border-slate-200 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-2 mr-4"
+              >
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Export CSV</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowHeldBillsModal(false)} 

@@ -193,21 +193,30 @@ router.post('/', authorize(['shop_admin', 'shop_staff']), async (req, res) => {
  */
 router.get('/', async (req, res) => {
   const shopId = req.shopId;
-  const { start_date, end_date } = req.query;
+  const { start_date, end_date, product_name } = req.query;
 
   try {
     let sql = `
-      SELECT s.*, u.name as staff_name, c.name as customer_name 
-      FROM sales s
-      LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN customers c ON s.customer_id = c.id
+      SELECT 
+        s.*, 
+        u.name as staff_name, 
+        c.name as customer_name,
+        (SELECT GROUP_CONCAT(p.name SEPARATOR ', ') FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = s.id) as product_names
+      FROM sales s 
+      LEFT JOIN users u ON s.user_id = u.id 
+      LEFT JOIN customers c ON s.customer_id = c.id 
       WHERE s.shop_id = ?
     `;
     const params = [shopId];
 
     if (start_date && end_date) {
-      sql += ' AND s.created_at BETWEEN ? AND ?';
+      sql += ' AND DATE(s.created_at) BETWEEN ? AND ?';
       params.push(`${start_date} 00:00:00`, `${end_date} 23:59:59`);
+    }
+
+    if (product_name) {
+      sql += ' AND EXISTS (SELECT 1 FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = s.id AND p.name LIKE ?)';
+      params.push(`%${product_name}%`);
     }
 
     sql += ' ORDER BY s.created_at DESC';

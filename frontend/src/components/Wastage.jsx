@@ -177,6 +177,44 @@ export default function Wastage() {
     });
   };
 
+  const exportWastagesToCSV = () => {
+    if (filteredWastages.length === 0) {
+      triggerAlert('error', 'No wastage records to export in the current view.');
+      return;
+    }
+
+    const headers = ['Wastage ID', 'Adjustment Date', 'Product Name', 'Product SKU', 'Quantity Adjusted', 'Estimated Loss (Cost)', 'Reason', 'Notes', 'Shop Name'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredWastages.map(w => [
+      w.id,
+      `"${new Date(w.adjusted_at).toLocaleString()}"`,
+      escapeCSV(w.product_name),
+      escapeCSV(w.product_sku),
+      w.quantity,
+      parseFloat(w.cost_loss || 0).toFixed(2),
+      escapeCSV(w.reason),
+      escapeCSV(w.notes || ''),
+      escapeCSV(w.shop_name || 'N/A')
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `wastage_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    triggerAlert('success', 'Wastage logs exported to CSV successfully!');
+  };
+
   // HELPER FORMATTERS
   const formatCurrency = (val) => `৳${parseFloat(val).toFixed(2)}`;
   const formatDate = (dateStr) => {
@@ -225,8 +263,17 @@ export default function Wastage() {
           <h2 className="text-2xl font-bold text-slate-800">Damage & Wastage Logs</h2>
           <p className="text-sm text-slate-500">Track expired, damaged, stolen inventory, or log manual stock adjustments</p>
         </div>
-        {!isSuperAdmin && (
-          <div className="flex items-center space-x-3 w-full sm:w-auto">
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+            <button
+                onClick={exportWastagesToCSV}
+                className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+            >
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Export CSV</span>
+            </button>
+            {!isSuperAdmin && (
             <button
               onClick={() => { resetForm(); setShowAddModal(true); }}
               className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
@@ -236,8 +283,8 @@ export default function Wastage() {
               </svg>
               <span>Log Stock Adjustment</span>
             </button>
-          </div>
-        )}
+            )}
+        </div>
       </div>
  
       {/* KPI Cards Row */}

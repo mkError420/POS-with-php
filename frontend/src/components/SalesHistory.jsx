@@ -16,6 +16,9 @@ export default function SalesHistory() {
   const [chartType, setChartType] = useState('revenue'); // 'revenue' or 'sales'
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [search, setSearch] = useState('');
+  const [productName, setProductName] = useState('');
+  const [productDailySales, setProductDailySales] = useState(null);
+  const [dailySalesLoading, setDailySalesLoading] = useState(false);
   
   // Modal viewer state
   const [selectedSale, setSelectedSale] = useState(null);
@@ -48,8 +51,15 @@ export default function SalesHistory() {
     try {
       const token = localStorage.getItem('token');
       let url = `${API_BASE_URL}/sales`;
+      const params = [];
       if (startDate && endDate) {
-        url += `?start_date=${startDate}&end_date=${endDate}`;
+        params.push(`start_date=${startDate}&end_date=${endDate}`);
+      }
+      if (productName) {
+        params.push(`product_name=${encodeURIComponent(productName)}`);
+      }
+      if (params.length > 0) {
+        url += `?${params.join('&')}`;
       }
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -61,6 +71,29 @@ export default function SalesHistory() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProductDailySales = async () => {
+    if (!startDate || !endDate) {
+      setProductDailySales(null);
+      return;
+    }
+    setDailySalesLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/analytics/daily-products?start_date=${startDate}&end_date=${endDate}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error('Could not load daily product sales summary.');
+      }
+      const data = await response.json();
+      setProductDailySales(data);
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setDailySalesLoading(false);
     }
   };
 
@@ -102,7 +135,8 @@ export default function SalesHistory() {
     setSelectedSaleIds([]);
     fetchSales();
     fetchHeldBills();
-  }, [startDate, endDate]);
+    fetchProductDailySales();
+  }, [startDate, endDate, productName]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -221,6 +255,99 @@ export default function SalesHistory() {
     }
   };
 
+  const exportToCSV = () => {
+    if (filteredSales.length === 0) {
+      triggerAlert('error', 'No sales history to export.');
+      return;
+    }
+
+    const headers = ['Invoice ID', 'Date', 'Products', 'Customer', 'Cashier', 'Payment Method', 'Total Amount', 'Paid Amount', 'Due Amount'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredSales.map(sale => [
+      sale.id,
+      `"${new Date(sale.created_at).toLocaleString()}"`,
+      escapeCSV(sale.product_names || ''),
+      escapeCSV(sale.customer_name || 'Walk-in Customer'),
+      escapeCSV(sale.staff_name),
+      escapeCSV(sale.payment_method.replace('_', ' ')),
+      parseFloat(sale.final_amount).toFixed(2),
+      parseFloat(sale.paid_amount !== null && sale.paid_amount !== undefined ? sale.paid_amount : sale.final_amount || 0).toFixed(2),
+      parseFloat(sale.due_amount || 0).toFixed(2)
+    ]);
+
+    const csvContent = "\uFEFF" + [
+      headers.join(','),
+      ...rows.map(e => e.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    const dateSuffix = new Date().toISOString().slice(0, 10);
+    link.setAttribute('download', `sales_history_${dateSuffix}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerAlert('success', 'Sales history exported successfully!');
+  };
+
+  const exportDueBillsToCSV = () => {
+    const dueBills = heldBills.filter(b => b.status === 'held' && parseFloat(b.due_amount || 0) > 0);
+    if (dueBills.length === 0) {
+      triggerAlert('error', 'No due bills to export.');
+      return;
+    }
+
+    const headers = ['Due Bill ID', 'Date Created', 'Original Sale ID', 'Customer', 'Cashier', 'Due Amount'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = dueBills.map(bill => {
+      const saleIdMatch = (bill.notes || '').match(/Sale #(\d+)/);
+      const originalSaleId = saleIdMatch ? saleIdMatch[1] : 'N/A';
+
+      return [
+        bill.id,
+        `"${new Date(bill.created_at).toLocaleString()}"`,
+        originalSaleId,
+        escapeCSV(bill.customer_name || 'Walk-in'),
+        escapeCSV(bill.staff_name || 'N/A'),
+        parseFloat(bill.due_amount || 0).toFixed(2)
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `due_bills_history_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerAlert('success', 'Due bills history exported successfully!');
+  };
+
   // Computed summary stats
   const filteredSales = sales.filter((sale) => {
     const query = search.toLowerCase().trim();
@@ -262,9 +389,22 @@ export default function SalesHistory() {
       )}
 
       {/* Title Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Sales Transactions</h2>
-        <p className="text-sm text-slate-500">Search and audit invoice histories, payment logs, and totals</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Sales Transactions</h2>
+          <p className="text-sm text-slate-500">Search and audit invoice histories, payment logs, and totals</p>
+        </div>
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <button
+            onClick={exportToCSV}
+            className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-5 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Export CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Date Filters bar */}
@@ -310,6 +450,64 @@ export default function SalesHistory() {
           </svg>
         </div>
       </div>
+
+      {/* Daily Product Sales Summary */}
+      {productDailySales && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="p-4 bg-slate-50/50 border-b border-slate-100">
+            <h3 className="font-bold text-slate-800">Products Sold Summary</h3>
+            <p className="text-xs text-slate-500">
+              Aggregated view of all products sold between <span className="font-semibold text-indigo-600">{new Date(startDate).toLocaleDateString()}</span> and <span className="font-semibold text-indigo-600">{new Date(endDate).toLocaleDateString()}</span>.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            {dailySalesLoading ? (
+              <div className="p-12 text-center text-slate-400">Loading summary...</div>
+            ) : productDailySales.length === 0 ? (
+              <div className="p-12 text-center text-slate-400">No products were sold in this period.</div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="p-3 pl-4">SKU</th>
+                    <th className="p-3">Product Name</th>
+                    <th className="p-3 text-center">Total Quantity Sold</th>
+                    <th className="p-3 text-right pr-4">Total Revenue Generated</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {productDailySales.map(item => (
+                    <tr key={item.product_id} className="hover:bg-slate-50/50">
+                      <td className="p-3 pl-4 font-mono text-xs font-bold text-slate-500">{item.product_sku}</td>
+                      <td className="p-3 font-semibold text-slate-800">{item.product_name}</td>
+                      <td className="p-3 text-center">
+                        <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-100">
+                          {item.total_quantity_sold} units
+                        </span>
+                      </td>
+                      <td className="p-3 text-right pr-4 font-extrabold text-emerald-600">
+                        ৳{parseFloat(item.total_revenue).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50/50 border-t border-slate-200 font-bold">
+                    <td colSpan="2" className="p-3 pl-4 text-slate-500 uppercase text-xs">Total</td>
+                    <td className="p-3 text-center text-indigo-800">
+                      {productDailySales.reduce((sum, item) => sum + item.total_quantity_sold, 0)} units
+                    </td>
+                    <td className="p-3 text-right pr-4 text-emerald-700">
+                      ৳{productDailySales.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -582,6 +780,21 @@ export default function SalesHistory() {
       {/* Sales Logs Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
+          <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-slate-800">Outstanding Due Bills</h3>
+              <p className="text-xs text-slate-500">List of all recorded due balances from sales transactions.</p>
+            </div>
+            <button
+              onClick={exportDueBillsToCSV}
+              className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 border border-slate-200 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Export Due Bills CSV</span>
+            </button>
+          </div>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">

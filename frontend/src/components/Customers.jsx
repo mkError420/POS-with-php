@@ -41,12 +41,16 @@ export default function Customers() {
     address: ''
   });
 
-  const handleHistoryPrint = () => {
-    document.body.classList.add('print-mode-history');
-    window.print();
-    setTimeout(() => {
+ const handleHistoryPrint = () => {
+    const handleAfterPrint = () => {
       document.body.classList.remove('print-mode-history');
-    }, 500);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint);
+    document.body.classList.add('print-mode-history');
+
+    window.requestAnimationFrame(() => window.print());
   };
 
   const fetchCustomers = async () => {

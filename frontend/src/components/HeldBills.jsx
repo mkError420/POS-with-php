@@ -153,6 +153,50 @@ export default function HeldBills({ onResume = () => {}, onHeldBillsChange = () 
     }
   };
 
+  const exportHeldBillsToCSV = () => {
+    if (filteredBills.length === 0) {
+      triggerAlert('error', 'No bills to export in the current view.');
+      return;
+    }
+
+    const headers = ['Held Bill ID', 'Date Held', 'Reference Note', 'Customer', 'Cashier', 'Items', 'Due Amount', 'Status'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredBills.map(bill => {
+      let itemsList = [];
+      try {
+        itemsList = typeof bill.items === 'string' ? JSON.parse(bill.items) : bill.items;
+      } catch (e) { /* ignore */ }
+      const itemsString = itemsList.map(item => `${item.product_name || 'Item'} (x${item.quantity})`).join('; ');
+
+      return [
+        bill.id,
+        `"${new Date(bill.created_at).toLocaleString()}"`,
+        escapeCSV(bill.notes || ''),
+        escapeCSV(bill.customer_name || 'Walk-in'),
+        escapeCSV(bill.staff_name || 'N/A'),
+        escapeCSV(itemsString),
+        parseFloat(bill.due_amount || 0).toFixed(2),
+        escapeCSV(bill.status)
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `held_bills_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    triggerAlert('success', 'Held bills exported to CSV successfully!');
+  };
   // Filter and search computation
   const filteredBills = heldBills.filter(bill => {
     const matchesSearch = 
@@ -469,6 +513,15 @@ export default function HeldBills({ onResume = () => {}, onHeldBillsChange = () 
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          <button
+            onClick={exportHeldBillsToCSV}
+            className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 border border-slate-200 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 

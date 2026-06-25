@@ -297,6 +297,44 @@ export default function Returns() {
     setCustomerDueBalance(0);
   };
 
+  const exportReturnsToCSV = () => {
+    if (filteredReturns.length === 0) {
+      triggerAlert('error', 'No returns to export in the current view.');
+      return;
+    }
+
+    const headers = ['Return ID', 'Return Date', 'Product Name', 'Product SKU', 'Quantity Returned', 'Refund Amount', 'Refund Method', 'Customer', 'Reference Sale ID', 'Notes'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredReturns.map(r => [
+      r.id,
+      `"${new Date(r.created_at).toLocaleString()}"`,
+      escapeCSV(r.product_name),
+      escapeCSV(r.product_sku),
+      r.quantity,
+      parseFloat(r.refund_amount || 0).toFixed(2),
+      escapeCSV(r.deduct_from_due ? 'Store Credit' : 'Cash Refund'),
+      escapeCSV(r.customer_name || 'Walk-in'),
+      r.sale_id || 'N/A',
+      escapeCSV(r.notes || '')
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `product_returns_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    triggerAlert('success', 'Product returns exported to CSV successfully!');
+  };
   // HELPER FORMATTERS
   const formatCurrency = (val) => `৳${parseFloat(val).toFixed(2)}`;
   const formatDate = (dateStr) => {
@@ -345,17 +383,28 @@ export default function Returns() {
           <h2 className="text-2xl font-bold text-slate-800">Customer Product Returns</h2>
           <p className="text-sm text-slate-500">Record customer product returns, auto-adjust inventory levels, and calculate return values</p>
         </div>
-        {!isSuperAdmin && (
-          <button
-            onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Process Return</span>
-          </button>
-        )}
+        <div className="flex items-center space-x-2">
+            <button
+                onClick={exportReturnsToCSV}
+                className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+            >
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Export CSV</span>
+            </button>
+            {!isSuperAdmin && (
+            <button
+                onClick={() => { resetForm(); setShowAddModal(true); }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
+            >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Process Return</span>
+            </button>
+            )}
+        </div>
       </div>
 
       {/* KPIs */}

@@ -560,6 +560,50 @@ export default function ManualOrders() {
     }, 500);
   };
 
+  const exportOrdersToCSV = () => {
+    if (searchedOrders.length === 0) {
+      triggerAlert('error', 'No orders to export in the current view.');
+      return;
+    }
+
+    const headers = ['Order ID', 'Date', 'Salesman', 'Customer Name', 'Customer Phone', 'Payment Method', 'Status', 'Total Amount', 'Due Amount'];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      let str = String(val);
+      if (/[",\n\r]/.test(str)) {
+        str = `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = searchedOrders.map(order => {
+      return [
+        order.id,
+        `"${new Date(order.created_at).toLocaleString()}"`,
+        escapeCSV(order.salesman_name),
+        escapeCSV(order.customer_name || 'Walk-in'),
+        escapeCSV(order.customer_phone || ''),
+        escapeCSV(order.payment_method),
+        escapeCSV(order.status),
+        parseFloat(order.sale_final_amount || 0).toFixed(2),
+        parseFloat(order.current_sale_due || 0).toFixed(2)
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `manual_orders_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    triggerAlert('success', 'Manual orders exported to CSV successfully!');
+  };
+
   // Filter orders by search query
   const searchedOrders = orders.filter(order => {
     return (
@@ -601,7 +645,7 @@ export default function ManualOrders() {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between">
         <div className="relative max-w-md">
           <input
             type="text"
@@ -614,6 +658,15 @@ export default function ManualOrders() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
+        <button
+          onClick={exportOrdersToCSV}
+          className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 border border-slate-200 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-2"
+        >
+          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Export CSV</span>
+        </button>
       </div>
 
       {/* Two Columns Layout (Vertical Stacking) */}

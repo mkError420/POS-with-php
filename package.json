@@ -1,0 +1,15 @@
+{
+  "name": "multitenant-pos",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

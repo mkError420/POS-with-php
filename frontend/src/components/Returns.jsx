@@ -27,6 +27,7 @@ export default function Returns() {
     product_id: '',
     quantity: '1',
     refund_amount: '0.00',
+    refund_method: 'cash',
     notes: '',
     deduct_from_due: false
   });
@@ -210,10 +211,18 @@ export default function Returns() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    if (name === 'deduct_from_due') {
+      setFormData(prev => ({
+        ...prev,
+        deduct_from_due: checked,
+        refund_method: checked ? 'store_credit' : 'cash'
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
 
     if (name === 'product_id' && value === '') {
       // Clear search term if product is deselected
@@ -248,6 +257,7 @@ export default function Returns() {
           product_id: parseInt(formData.product_id),
           quantity: qtyVal,
           refund_amount: parseFloat(formData.refund_amount),
+          refund_method: formData.refund_method || 'cash',
           notes: formData.notes,
           deduct_from_due: formData.deduct_from_due ? 1 : 0
         })
@@ -294,6 +304,7 @@ export default function Returns() {
       product_id: '',
       quantity: '1',
       refund_amount: '0.00',
+      refund_method: 'cash',
       notes: '',
       deduct_from_due: false
     });
@@ -327,7 +338,7 @@ export default function Returns() {
       escapeCSV(r.product_sku),
       r.quantity,
       parseFloat(r.refund_amount || 0).toFixed(2),
-      escapeCSV(r.deduct_from_due ? 'Store Credit' : 'Cash Refund'),
+      escapeCSV(getRefundMethodLabel(r)),
       escapeCSV(r.customer_name || 'Walk-in'),
       r.sale_id || 'N/A',
       escapeCSV(r.notes || '')
@@ -343,6 +354,21 @@ export default function Returns() {
   };
   // HELPER FORMATTERS
   const formatCurrency = (val) => `৳${parseFloat(val).toFixed(2)}`;
+  const getRefundMethodLabel = (record) => {
+    if (record.deduct_from_due || record.refund_method === 'store_credit') {
+      return 'Store Credit';
+    }
+    switch (record.refund_method) {
+      case 'card':
+        return 'Card';
+      case 'mobile_pay':
+        return 'Mobile Pay';
+      case 'bank_transfer':
+        return 'Bank Transfer';
+      default:
+        return 'Cash';
+    }
+  };
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     const parts = dateStr.split('T')[0].split('-');
@@ -567,9 +593,9 @@ export default function Returns() {
                     <td className="p-4 font-black text-rose-600">{formatCurrency(r.refund_amount)}</td>
                     <td className="p-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-                        r.deduct_from_due ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                        getRefundMethodLabel(r) === 'Store Credit' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
                       }`}>
-                        {r.deduct_from_due ? 'Store Credit' : 'Cash Refund'}
+                        {getRefundMethodLabel(r)}
                       </span>
                     </td>
                     <td className="p-4 text-slate-500 italic max-w-xs truncate">{r.notes || '-'}</td>
@@ -798,6 +824,28 @@ export default function Returns() {
                   </label>
                 </div>
               )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Refund Method
+                </label>
+                <select
+                  name="refund_method"
+                  value={formData.refund_method}
+                  onChange={handleInputChange}
+                  disabled={formData.deduct_from_due}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white text-slate-700 disabled:bg-slate-100"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="mobile_pay">Mobile Pay</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="store_credit">Store Credit</option>
+                </select>
+                {formData.deduct_from_due && (
+                  <span className="text-[10px] text-amber-600 block mt-1 font-semibold">Store credit is applied automatically when you deduct from due balance.</span>
+                )}
+              </div>
 
               {/* Notes */}
               <div>

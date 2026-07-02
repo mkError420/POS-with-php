@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/db');
 const { authenticate, authorize, enforceTenant } = require('../middleware/auth');
+const { normalizeRefundMethod } = require('../utils/refund-methods');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.use(enforceTenant);
  */
 router.post('/', authorize(['shop_admin', 'shop_staff']), async (req, res) => {
   const shopId = req.shopId;
-  const { customer_id, sale_id, product_id, quantity, refund_amount, notes, deduct_from_due = 0 } = req.body;
+  const { customer_id, sale_id, product_id, quantity, refund_amount, refund_method, notes, deduct_from_due = 0 } = req.body;
 
   if (!product_id || !quantity || quantity <= 0 || refund_amount === undefined || refund_amount < 0) {
     return res.status(400).json({ error: 'Please provide product, valid quantity and refund amount.' });
@@ -24,6 +25,8 @@ router.post('/', authorize(['shop_admin', 'shop_staff']), async (req, res) => {
 
   try {
     await connection.beginTransaction();
+
+    const normalizedRefundMethod = normalizeRefundMethod(refund_method, { deductFromDue: deduct_from_due > 0 });
 
     // Verify product belongs to this shop
     const [productRows] = await connection.query(
@@ -92,9 +95,9 @@ router.post('/', authorize(['shop_admin', 'shop_staff']), async (req, res) => {
 
     // Record the return in customer_returns
     const [result] = await connection.query(
-      `INSERT INTO customer_returns (shop_id, customer_id, sale_id, product_id, quantity, refund_amount, notes, deduct_from_due)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [shopId, customer_id || null, sale_id || null, product_id, quantity, refund_amount, notes || null, deduct_from_due ? 1 : 0]
+      `INSERT INTO customer_returns (shop_id, customer_id, sale_id, product_id, quantity, refund_amount, refund_method, notes, deduct_from_due)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [shopId, customer_id || null, sale_id || null, product_id, quantity, refund_amount, normalizedRefundMethod, notes || null, deduct_from_due ? 1 : 0]
     );
 
     // Auto add back to inventory

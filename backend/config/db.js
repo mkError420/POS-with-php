@@ -101,6 +101,7 @@ const pool = mysql.createPool({
         \`product_id\` INT NOT NULL,
         \`quantity\` INT NOT NULL,
         \`refund_amount\` DECIMAL(10,2) NOT NULL,
+        \`refund_method\` VARCHAR(30) NOT NULL DEFAULT 'cash',
         \`notes\` TEXT NULL,
         \`deduct_from_due\` TINYINT(1) NOT NULL DEFAULT 0,
         \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -112,6 +113,12 @@ const pool = mysql.createPool({
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
     console.log("Migration: Verified and created 'customer_returns' table.");
+
+    const [refundMethodColumns] = await connection.query("SHOW COLUMNS FROM `customer_returns` LIKE 'refund_method'");
+    if (refundMethodColumns.length === 0) {
+      await connection.query("ALTER TABLE `customer_returns` ADD COLUMN `refund_method` VARCHAR(30) NOT NULL DEFAULT 'cash'");
+      console.log("Migration: Added 'refund_method' column to 'customer_returns' table.");
+    }
 
     // Check if logo column exists on users table
     const [logoColumns] = await connection.query("SHOW COLUMNS FROM `users` LIKE 'logo'");

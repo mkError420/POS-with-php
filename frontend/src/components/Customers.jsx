@@ -35,6 +35,7 @@ export default function Customers() {
   const [returnForm, setReturnForm] = useState({
     quantity: '1',
     refund_amount: '0.00',
+    refund_method: 'cash',
     notes: '',
     deduct_from_due: false
   });
@@ -44,6 +45,30 @@ export default function Customers() {
   const [duePayAmount, setDuePayAmount] = useState('');
   const [duePayMethod, setDuePayMethod] = useState('cash');
   const [duePaySubmitting, setDuePaySubmitting] = useState(false);
+
+  const refundMethodOptions = [
+    { value: 'cash', label: 'Cash' },
+    { value: 'card', label: 'Card' },
+    { value: 'mobile_pay', label: 'Mobile Pay' },
+    { value: 'bank_transfer', label: 'Bank Transfer' },
+    { value: 'store_credit', label: 'Store Credit' }
+  ];
+
+  const formatRefundMethodLabel = (method) => {
+    const normalized = (method || '').toString().trim().toLowerCase();
+    switch (normalized) {
+      case 'card':
+        return 'Card';
+      case 'mobile_pay':
+        return 'Mobile Pay';
+      case 'bank_transfer':
+        return 'Bank Transfer';
+      case 'store_credit':
+        return 'Store Credit';
+      default:
+        return 'Cash';
+    }
+  };
 
   // Form states
   const [formData, setFormData] = useState({
@@ -103,6 +128,7 @@ export default function Customers() {
     setReturnForm({
       quantity: '1',
       refund_amount: '0.00',
+      refund_method: 'cash',
       notes: '',
       deduct_from_due: false
     });
@@ -133,8 +159,34 @@ export default function Customers() {
     setReturnForm({
       quantity: '1',
       refund_amount: (parseFloat(item.unit_price || 0) * 1).toFixed(2),
+      refund_method: 'cash',
       notes: '',
       deduct_from_due: false
+    });
+  };
+
+  const handleReturnFormChange = (field, value) => {
+    setReturnForm(prev => {
+      const next = { ...prev, [field]: value };
+
+      if (field === 'refund_method') {
+        const normalized = value.toString().trim().toLowerCase();
+        if (normalized === 'store_credit') {
+          next.deduct_from_due = true;
+        } else if (prev.deduct_from_due && normalized !== 'store_credit') {
+          next.deduct_from_due = false;
+        }
+      }
+
+      if (field === 'deduct_from_due') {
+        if (value) {
+          next.refund_method = 'store_credit';
+        } else if (prev.refund_method === 'store_credit') {
+          next.refund_method = 'cash';
+        }
+      }
+
+      return next;
     });
   };
 
@@ -170,6 +222,7 @@ export default function Customers() {
           product_id: parseInt(activeReturnItem.item.product_id, 10),
           quantity: qty,
           refund_amount: parseFloat(returnForm.refund_amount || 0),
+          refund_method: returnForm.refund_method || 'cash',
           notes: returnForm.notes,
           deduct_from_due: returnForm.deduct_from_due ? 1 : 0
         })
@@ -1232,13 +1285,31 @@ export default function Customers() {
                                                     className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
                                                   />
                                                 </div>
+                                                <div className="flex-1">
+                                                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Refund Method</label>
+                                                  <select
+                                                    value={returnForm.refund_method}
+                                                    onChange={(e) => handleReturnFormChange('refund_method', e.target.value)}
+                                                    disabled={returnForm.deduct_from_due}
+                                                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none bg-white"
+                                                  >
+                                                    {refundMethodOptions.map((method) => (
+                                                      <option key={method.value} value={method.value}>
+                                                        {method.label}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                  {returnForm.deduct_from_due && (
+                                                    <p className="text-[10px] text-amber-600 mt-1">Store credit is applied automatically when the refund is deducted from due balance.</p>
+                                                  )}
+                                                </div>
                                               </div>
                                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                                 <label className="flex items-center gap-2 text-sm text-slate-600">
                                                   <input
                                                     type="checkbox"
                                                     checked={returnForm.deduct_from_due}
-                                                    onChange={(e) => setReturnForm(prev => ({ ...prev, deduct_from_due: e.target.checked }))}
+                                                    onChange={(e) => handleReturnFormChange('deduct_from_due', e.target.checked)}
                                                     className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                                                   />
                                                   Deduct refund from customer due balance

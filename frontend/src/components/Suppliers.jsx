@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -789,6 +791,75 @@ export default function Suppliers() {
   const getFilteredPOs = (ordersList) => {
     if (poFilterStatus === 'all') return ordersList;
     return ordersList.filter(o => o.status === poFilterStatus);
+  };
+
+  const handleDownloadPOCSV = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/export/csv`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download CSV.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `purchase_orders_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      triggerAlert('success', 'CSV downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const handleDownloadPOPDF = () => {
+    try {
+      const filteredPOs = getFilteredPOs(purchaseOrders);
+      if (filteredPOs.length === 0) {
+        triggerAlert('error', 'No purchase orders to export.');
+        return;
+      }
+
+      const doc = new jsPDF();
+      const tableData = filteredPOs.map(po => [
+        `#PO-${po.id}`,
+        po.supplier_name,
+        po.order_date ? po.order_date.split('T')[0] : '-',
+        po.payment_basis || 'cash',
+        formatCurrency(po.total_amount),
+        formatCurrency(po.paid_amount || 0),
+        formatCurrency(po.due_amount || 0),
+        po.status
+      ]);
+
+      autoTable(doc, {
+        head: [['PO ID', 'Supplier', 'Order Date', 'Payment Basis', 'Total', 'Paid', 'Due', 'Status']],
+        body: tableData,
+        startY: 25,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        margin: { top: 25, right: 10, bottom: 20, left: 10 }
+      });
+
+      doc.setFontSize(16);
+      doc.text('Purchase Orders', 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Total Orders: ${filteredPOs.length}`, 14, doc.lastAutoTable.finalY + 10);
+
+      doc.save(`purchase_orders_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      triggerAlert('success', 'PDF downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', 'Failed to generate PDF.');
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -1661,7 +1732,7 @@ export default function Suppliers() {
         return (
           <div className="space-y-4">
             {/* PO Filters bar */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
               <div className="flex items-center space-x-2.5">
                 <span className="text-xs font-bold text-slate-400 uppercase">Filter Status:</span>
                 <div className="flex space-x-1.5">
@@ -1682,6 +1753,26 @@ export default function Suppliers() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleDownloadPOCSV}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>CSV</span>
+                </button>
+                <button
+                  onClick={handleDownloadPOPDF}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span>PDF</span>
+                </button>
               </div>
             </div>
 

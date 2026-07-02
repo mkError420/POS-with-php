@@ -240,6 +240,51 @@ router.delete('/:id', authorize(['shop_admin']), async (req, res) => {
 });
 
 /**
+ * @route   GET /api/customers/export/csv
+ * @desc    Export all customers as CSV file
+ */
+router.get('/export/csv', authorize(['shop_admin']), async (req, res) => {
+  const shopId = req.shopId;
+  try {
+    const [customers] = await db.query(
+      'SELECT id, name, phone, email, address, due_balance, loyalty_points, created_at FROM customers WHERE shop_id = ? ORDER BY name ASC',
+      [shopId]
+    );
+
+    if (customers.length === 0) {
+      return res.status(404).json({ error: 'No customers found to export.' });
+    }
+
+    // Generate CSV content
+    const headers = ['ID', 'Name', 'Phone', 'Email', 'Address', 'Due Balance', 'Loyalty Points', 'Created At'];
+    const csvRows = [headers.join(',')];
+
+    customers.forEach(customer => {
+      const row = [
+        customer.id,
+        `"${(customer.name || '').replace(/"/g, '""')}"`,
+        `"${(customer.phone || '').replace(/"/g, '""')}"`,
+        `"${(customer.email || '').replace(/"/g, '""')}"`,
+        `"${(customer.address || '').replace(/"/g, '""')}"`,
+        customer.due_balance || 0,
+        customer.loyalty_points || 0,
+        customer.created_at || ''
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="customers_export_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'Server error exporting customers to CSV.' });
+  }
+});
+
+/**
  * @route   GET /api/customers/:id/history
  * @desc    Fetch customer transaction & purchase history
  */

@@ -108,6 +108,61 @@ router.get('/cost-price-logs', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/suppliers/purchase-orders/export/csv
+ * @desc    Export all purchase orders as CSV file
+ */
+router.get('/purchase-orders/export/csv', authorize(['shop_admin']), async (req, res) => {
+  const shopId = req.shopId;
+  try {
+    const [orders] = await db.query(
+      `SELECT po.id, po.order_date, po.status, po.total_amount, po.payment_basis, 
+              po.paid_amount, po.due_amount, po.notes, po.created_at,
+              s.name AS supplier_name, s.email AS supplier_email, s.phone AS supplier_phone
+       FROM purchase_orders po
+       JOIN suppliers s ON po.supplier_id = s.id
+       WHERE po.shop_id = ?
+       ORDER BY po.created_at DESC`,
+      [shopId]
+    );
+
+    if (orders.length === 0) {
+      return res.status(404).json({ error: 'No purchase orders found to export.' });
+    }
+
+    // Generate CSV content
+    const headers = ['PO ID', 'Order Date', 'Status', 'Total Amount', 'Payment Basis', 'Paid Amount', 'Due Amount', 'Supplier Name', 'Supplier Email', 'Supplier Phone', 'Notes', 'Created At'];
+    const csvRows = [headers.join(',')];
+
+    orders.forEach(order => {
+      const row = [
+        order.id,
+        order.order_date ? order.order_date.split('T')[0] : '',
+        order.status,
+        order.total_amount || 0,
+        order.payment_basis,
+        order.paid_amount || 0,
+        order.due_amount || 0,
+        `"${(order.supplier_name || '').replace(/"/g, '""')}"`,
+        `"${(order.supplier_email || '').replace(/"/g, '""')}"`,
+        `"${(order.supplier_phone || '').replace(/"/g, '""')}"`,
+        `"${(order.notes || '').replace(/"/g, '""')}"`,
+        order.created_at || ''
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="purchase_orders_export_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'Server error exporting purchase orders to CSV.' });
+  }
+});
+
+/**
  * @route   POST /api/suppliers/purchase-orders
  * @desc    Create a new purchase order
  */

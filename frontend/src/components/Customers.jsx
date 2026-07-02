@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -48,7 +50,7 @@ export default function Customers() {
   const [csvErrors, setCsvErrors] = useState([]);
   const [csvSuccessMessage, setCsvSuccessMessage] = useState('');
 
- const handleHistoryPrint = () => {
+  const handleHistoryPrint = () => {
     const handleAfterPrint = () => {
       document.body.classList.remove('print-mode-history');
       window.removeEventListener('afterprint', handleAfterPrint);
@@ -183,7 +185,7 @@ export default function Customers() {
     setDuePaySubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      
+
       // Find the customer's active held bills with due amounts
       const heldRes = await fetch(`${API_BASE_URL}/held-bills`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -369,10 +371,71 @@ export default function Customers() {
     }
   };
 
+  const handleDownloadCSV = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/customers/export/csv`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download CSV.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `customers_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      triggerAlert('success', 'CSV downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const tableData = filteredCustomers.map(customer => [
+        customer.name,
+        customer.phone || '-',
+        customer.email || '-',
+        customer.address || '-',
+        `৳${parseFloat(customer.due_balance || 0).toFixed(2)}`,
+        `${customer.loyalty_points || 0} pts`
+      ]);
+
+      autoTable(doc, {
+        head: [['Customer Name', 'Phone Number', 'Email', 'Address', 'Due Balance', 'Loyalty Points']],
+        body: tableData,
+        startY: 20,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        margin: { top: 20, right: 10, bottom: 20, left: 10 }
+      });
+
+      doc.setFontSize(16);
+      doc.text('Customer Directory', 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Total Customers: ${filteredCustomers.length}`, 14, doc.lastAutoTable.finalY + 10);
+
+      doc.save(`customers_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      triggerAlert('success', 'PDF downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', 'Failed to generate PDF.');
+    }
+  };
+
   const filteredCustomers = customers.filter(customer => {
     const term = search.toLowerCase();
-    return customer.name.toLowerCase().includes(term) || 
-           (customer.phone && customer.phone.toLowerCase().includes(term));
+    return customer.name.toLowerCase().includes(term) ||
+      (customer.phone && customer.phone.toLowerCase().includes(term));
   });
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
@@ -382,11 +445,10 @@ export default function Customers() {
 
   return (
     <div className="space-y-6">
-      
+
       {alert && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg flex items-center transition-all ${
-          alert.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-        }`}>
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg flex items-center transition-all ${alert.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+          }`}>
           <span className="text-sm font-semibold">{alert.message}</span>
         </div>
       )}
@@ -396,15 +458,35 @@ export default function Customers() {
           <h2 className="text-2xl font-bold text-slate-800">Customer Directory</h2>
           <p className="text-sm text-slate-500">Manage buyer directory, records, and contact options</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowAddModal(true); }}
-          className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>Add New Customer</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleDownloadCSV}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>CSV</span>
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span>PDF</span>
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowAddModal(true); }}
+            className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Add New Customer</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -516,16 +598,15 @@ export default function Customers() {
             >
               Previous
             </button>
-            
+
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
-                  currentPage === page
+                className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${currentPage === page
                     ? 'bg-slate-600 text-white shadow-xs'
                     : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
-                }`}
+                  }`}
               >
                 {page}
               </button>
@@ -554,24 +635,22 @@ export default function Customers() {
                 </svg>
               </button>
             </div>
-            
+
             {/* Toggle between manual entry and CSV upload */}
             <div className="mt-4 flex bg-slate-100 rounded-lg p-1">
               <button
                 type="button"
                 onClick={() => { setUseCsvUpload(false); setCsvFile(null); }}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all ${
-                  !useCsvUpload ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all ${!useCsvUpload ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 Manual Entry
               </button>
               <button
                 type="button"
                 onClick={() => { setUseCsvUpload(true); resetForm(false); }}
-                className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all ${
-                  useCsvUpload ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all ${useCsvUpload ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 CSV Upload
               </button>
@@ -745,7 +824,7 @@ export default function Customers() {
                 </svg>
               </button>
             </div>
-            
+
             <form onSubmit={handleEditSubmit} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Full Name *</label>
@@ -835,8 +914,8 @@ export default function Customers() {
                     <span>Print PDF</span>
                   </button>
                 )}
-                <button 
-                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); }} 
+                <button
+                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); }}
                   className="text-slate-400 hover:text-slate-600 p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -848,11 +927,10 @@ export default function Customers() {
 
             {/* Due Balance Summary Card */}
             {historyCustomer && (
-              <div className={`mt-4 rounded-xl p-4 border flex items-center justify-between ${
-                parseFloat(historyCustomer.due_balance || 0) > 0
+              <div className={`mt-4 rounded-xl p-4 border flex items-center justify-between ${parseFloat(historyCustomer.due_balance || 0) > 0
                   ? 'bg-rose-50 border-rose-200'
                   : 'bg-emerald-50 border-emerald-200'
-              }`}>
+                }`}>
                 <div className="flex items-center space-x-3">
                   <div className={`p-2 rounded-lg ${parseFloat(historyCustomer.due_balance || 0) > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -883,7 +961,7 @@ export default function Customers() {
                 )}
               </div>
             )}
-            
+
             <div className="mt-4 flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
               {historyLoading ? (
                 <div className="flex justify-center items-center py-16">
@@ -992,7 +1070,7 @@ export default function Customers() {
                 })
               )}
             </div>
-            
+
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); }}
@@ -1071,11 +1149,10 @@ export default function Customers() {
                       key={method}
                       type="button"
                       onClick={() => setDuePayMethod(method)}
-                      className={`py-2 px-2 rounded-lg text-xs font-semibold border text-center transition-all ${
-                        duePayMethod === method
+                      className={`py-2 px-2 rounded-lg text-xs font-semibold border text-center transition-all ${duePayMethod === method
                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {method === 'mobile_pay' ? 'Mobile' : method.charAt(0).toUpperCase() + method.slice(1)}
                     </button>

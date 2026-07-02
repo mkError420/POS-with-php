@@ -1375,7 +1375,7 @@ export default function Suppliers() {
                               {po.status === 'draft' && (
                                 <button
                                   onClick={() => updatePoStatus(po.id, 'ordered')}
-                                  className="text-amber-600 hover:text-amber-850 font-semibold mr-3"
+                                  className="text-amber-600 hover:text-gray-850 font-semibold mr-3"
                                 >
                                   Place Order
                                 </button>
@@ -2306,7 +2306,7 @@ export default function Suppliers() {
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] p-5 shadow-2xl overflow-hidden flex flex-col">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
             <button onClick={() => setShowAddPoModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -2316,149 +2316,153 @@ export default function Suppliers() {
             </button>
           </div>
 
-          <form className="mt-4 space-y-4">
-            <div className="relative">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supplier *</label>
-              {selectedSupplierId ? (
-                <input
-                  type="text"
-                  value={supplierSearch}
-                  disabled
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 text-slate-500 font-medium"
-                />
-              ) : (
-                <>
+          <form className="mt-4 space-y-3 overflow-y-auto pr-1 flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="relative">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Supplier *</label>
+                {selectedSupplierId ? (
                   <input
                     type="text"
                     value={supplierSearch}
-                    onChange={(e) => {
-                      setSupplierSearch(e.target.value);
-                      setShowSupplierSuggestions(true);
-                      if (poFormData.supplier_id) {
-                        setPoFormData(prev => ({ ...prev, supplier_id: '' }));
-                      }
-                    }}
-                    onFocus={() => setShowSupplierSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 200)}
-                    placeholder="Search supplier name..."
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
+                    disabled
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 text-slate-500 font-medium"
                   />
-                  
-                  {showSupplierSuggestions && (() => {
-                    const query = supplierSearch.toLowerCase();
-                    const suggestions = suppliers.filter(s =>
-                      s.name.toLowerCase().includes(query)
-                    );
-                    if (suggestions.length === 0 && supplierSearch.trim() !== '') {
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={supplierSearch}
+                      onChange={(e) => {
+                        setSupplierSearch(e.target.value);
+                        setShowSupplierSuggestions(true);
+                        if (poFormData.supplier_id) {
+                          setPoFormData(prev => ({ ...prev, supplier_id: '' }));
+                        }
+                      }}
+                      onFocus={() => setShowSupplierSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 200)}
+                      placeholder="Search supplier name..."
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
+                    />
+                    
+                    {showSupplierSuggestions && (() => {
+                      const query = supplierSearch.toLowerCase();
+                      const suggestions = suppliers.filter(s =>
+                        s.name.toLowerCase().includes(query)
+                      );
+                      if (suggestions.length === 0 && supplierSearch.trim() !== '') {
+                        return (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 text-center text-slate-400 text-xs">
+                            No matching suppliers found
+                          </div>
+                        );
+                      }
+                      if (suggestions.length === 0) return null;
                       return (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 text-center text-slate-400 text-xs">
-                          No matching suppliers found
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
+                          {suggestions.map(s => (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                setSupplierSearch(s.name);
+                                setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                                setShowSupplierSuggestions(false);
+                              }}
+                              className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
+                            >
+                              <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                              {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
+                            </div>
+                          ))}
                         </div>
                       );
-                    }
-                    if (suggestions.length === 0) return null;
-                    return (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
-                        {suggestions.map(s => (
-                          <div
-                            key={s.id}
-                            onClick={() => {
-                              setSupplierSearch(s.name);
-                              setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
-                              setShowSupplierSuggestions(false);
-                            }}
-                            className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
-                          >
-                            <div className="text-xs font-semibold text-slate-800">{s.name}</div>
-                            {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-            </div>
+                    })()}
+                  </>
+                )}
+              </div>
 
-            <div className="relative">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Product *</label>
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => {
-                  setProductSearch(e.target.value);
-                  setShowProductSuggestions(true);
-                }}
-                onFocus={() => setShowProductSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
-                placeholder="Search existing product (Name or SKU)..."
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
-              />
+              <div className="relative">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Choose Product *</label>
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowProductSuggestions(true);
+                  }}
+                  onFocus={() => setShowProductSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                  placeholder="Search existing product (Name or SKU)..."
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
+                />
 
-              {showProductSuggestions && (() => {
-                const query = productSearch.toLowerCase();
-                const suggestions = productsList.filter(p =>
-                  p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query)
-                );
+                {showProductSuggestions && (() => {
+                  const query = productSearch.toLowerCase();
+                  const suggestions = productsList.filter(p =>
+                    p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query)
+                  );
 
-                return (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
-                    <div
-                      onClick={() => {
-                        setProductSearch('+ New Product (Create on-the-fly)');
-                        handlePoProductChange('new_product');
-                        setShowProductSuggestions(false);
-                      }}
-                      className="p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs"
-                    >
-                      + Create New Product On-The-Fly
-                    </div>
-                    {suggestions.map(p => (
+                  return (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
                       <div
-                        key={p.id}
                         onClick={() => {
-                          setProductSearch(`${p.name} (${p.sku})`);
-                          handlePoProductChange(String(p.id));
+                          setProductSearch('+ New Product (Create on-the-fly)');
+                          handlePoProductChange('new_product');
                           setShowProductSuggestions(false);
                         }}
-                        className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
+                        className="p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs"
                       >
-                        <div className="text-xs font-semibold text-slate-800">{p.name}</div>
-                        <div className="text-[10px] text-slate-400 flex justify-between">
-                          <span>SKU: {p.sku}</span>
-                          <span>Stock: {p.stock_quantity} left</span>
-                        </div>
+                        + Create New Product On-The-Fly
                       </div>
-                    ))}
-                  </div>
-                );
-              })()}
+                      {suggestions.map(p => (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            setProductSearch(`${p.name} (${p.sku})`);
+                            handlePoProductChange(String(p.id));
+                            setShowProductSuggestions(false);
+                          }}
+                          className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
+                        >
+                          <div className="text-xs font-semibold text-slate-800">{p.name}</div>
+                          <div className="text-[10px] text-slate-400 flex justify-between">
+                            <span>SKU: {p.sku}</span>
+                            <span>Stock: {p.stock_quantity} left</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
-              <input
-                type="text"
-                value={poFormData.name}
-                onChange={(e) => setPoFormData({ ...poFormData, name: e.target.value })}
-                disabled={!poFormData.is_new}
-                required
-                placeholder="Product Name"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
+                <input
+                  type="text"
+                  value={poFormData.name}
+                  onChange={(e) => setPoFormData({ ...poFormData, name: e.target.value })}
+                  disabled={!poFormData.is_new}
+                  required
+                  placeholder="Product Name"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">SKU / Code *</label>
-              <input
-                type="text"
-                value={poFormData.sku}
-                onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
-                disabled={!poFormData.is_new}
-                required
-                placeholder="SKU Code"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold font-mono"
-              />
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">SKU / Code *</label>
+                <input
+                  type="text"
+                  value={poFormData.sku}
+                  onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
+                  disabled={!poFormData.is_new}
+                  required
+                  placeholder="SKU Code"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold font-mono"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -2562,7 +2566,7 @@ export default function Suppliers() {
             <button
               type="button"
               onClick={addToPoCart}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
+              className="w-full bg-gray-600 hover:bg-yellow-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -2632,7 +2636,7 @@ export default function Suppliers() {
                 <button
                   type="button"
                   onClick={(e) => handlePoSubmit(e, 'ordered')}
-                  className="w-full sm:w-auto px-5 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="w-full sm:w-auto px-5 py-2 bg-slate-600 hover:bg-yellow-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
                 >
                   Place Order
                 </button>
@@ -2828,7 +2832,7 @@ export default function Suppliers() {
             {selectedPo.status === 'draft' && (
               <button
                 onClick={() => updatePoStatus(selectedPo.id, 'ordered')}
-                className="px-4 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-4 py-2 bg-slate-600 hover:bg-yellow-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Place Order
               </button>

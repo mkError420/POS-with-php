@@ -28,6 +28,8 @@ export default function Customers() {
   const [historySales, setHistorySales] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyProductSearch, setHistoryProductSearch] = useState('');
+  const [historyStartDate, setHistoryStartDate] = useState('');
+  const [historyEndDate, setHistoryEndDate] = useState('');
   const [activeReturnItem, setActiveReturnItem] = useState(null);
   const [returning, setReturning] = useState(false);
   const [returnForm, setReturnForm] = useState({
@@ -224,6 +226,8 @@ export default function Customers() {
     setHistoryCustomer(customer);
     setShowHistoryModal(true);
     setHistoryProductSearch('');
+    setHistoryStartDate('');
+    setHistoryEndDate('');
     setHistoryLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -1001,7 +1005,7 @@ export default function Customers() {
                   <p className="text-xs text-slate-500">Customer Profile: <span className="font-semibold text-indigo-600">{historyCustomer?.name}</span></p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap">
                 {!historyLoading && historySales.length > 0 && (
                   <button
                     onClick={handleHistoryPrint}
@@ -1013,17 +1017,38 @@ export default function Customers() {
                     <span>Print PDF</span>
                   </button>
                 )}
-                <div className="ml-2">
+                <div className="ml-2 flex items-center space-x-2 flex-wrap">
                   <input
                     type="search"
                     placeholder="Search product name..."
                     value={historyProductSearch}
                     onChange={(e) => setHistoryProductSearch(e.target.value)}
-                    className="text-xs w-56 md:w-72 py-1 px-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="text-xs w-32 sm:w-56 md:w-72 py-1 px-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  <input
+                    type="date"
+                    value={historyStartDate}
+                    onChange={(e) => setHistoryStartDate(e.target.value)}
+                    className="text-xs w-28 sm:w-36 py-1 px-2 border border-slate-200 rounded-lg focus:outline-none"
+                    title="Start date"
+                  />
+                  <input
+                    type="date"
+                    value={historyEndDate}
+                    onChange={(e) => setHistoryEndDate(e.target.value)}
+                    className="text-xs w-28 sm:w-36 py-1 px-2 border border-slate-200 rounded-lg focus:outline-none"
+                    title="End date"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
+                    className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg ml-1"
+                  >
+                    Clear
+                  </button>
                 </div>
                 <button
-                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); }}
+                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
                   className="text-slate-400 hover:text-slate-600 p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1078,14 +1103,22 @@ export default function Customers() {
               ) : (
                 (() => {
                   const searchTerm = (historyProductSearch || '').trim().toLowerCase();
-                  const filtered = searchTerm
-                    ? historySales.filter(sale => sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm)))
-                    : historySales;
+                  const start = historyStartDate ? new Date(historyStartDate) : null;
+                  const end = historyEndDate ? new Date(historyEndDate) : null;
+                  if (end) end.setHours(23,59,59,999);
+
+                  const filtered = historySales.filter(sale => {
+                    const saleDate = new Date(sale.created_at);
+                    if (start && saleDate < start) return false;
+                    if (end && saleDate > end) return false;
+                    if (!searchTerm) return true;
+                    return sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm));
+                  });
 
                   if (filtered.length === 0) {
                     return (
                       <div className="text-center py-16 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        No purchases match the product search.
+                        No purchases match the selected filters.
                       </div>
                     );
                   }
@@ -1277,7 +1310,7 @@ export default function Customers() {
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); }}
+                onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
               >
                 Close History
@@ -1428,9 +1461,17 @@ export default function Customers() {
           {/* Purchases List */}
           {(() => {
             const searchTerm = (historyProductSearch || '').trim().toLowerCase();
-            const filtered = searchTerm
-              ? historySales.filter(sale => sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm)))
-              : historySales;
+            const start = historyStartDate ? new Date(historyStartDate) : null;
+            const end = historyEndDate ? new Date(historyEndDate) : null;
+            if (end) end.setHours(23,59,59,999);
+
+            const filtered = historySales.filter(sale => {
+              const saleDate = new Date(sale.created_at);
+              if (start && saleDate < start) return false;
+              if (end && saleDate > end) return false;
+              if (!searchTerm) return true;
+              return sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm));
+            });
 
             return (
               <>

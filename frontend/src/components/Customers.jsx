@@ -27,6 +27,7 @@ export default function Customers() {
   const [historyCustomer, setHistoryCustomer] = useState(null);
   const [historySales, setHistorySales] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyProductSearch, setHistoryProductSearch] = useState('');
   const [activeReturnItem, setActiveReturnItem] = useState(null);
   const [returning, setReturning] = useState(false);
   const [returnForm, setReturnForm] = useState({
@@ -222,6 +223,7 @@ export default function Customers() {
   const openHistory = async (customer) => {
     setHistoryCustomer(customer);
     setShowHistoryModal(true);
+    setHistoryProductSearch('');
     setHistoryLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -1011,8 +1013,17 @@ export default function Customers() {
                     <span>Print PDF</span>
                   </button>
                 )}
+                <div className="ml-2">
+                  <input
+                    type="search"
+                    placeholder="Search product name..."
+                    value={historyProductSearch}
+                    onChange={(e) => setHistoryProductSearch(e.target.value)}
+                    className="text-xs w-56 md:w-72 py-1 px-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
                 <button
-                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); }}
+                  onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); }}
                   className="text-slate-400 hover:text-slate-600 p-1"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1064,198 +1075,209 @@ export default function Customers() {
                 <div className="flex justify-center items-center py-16">
                   <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
                 </div>
-              ) : historySales.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  No purchases recorded for this customer profile yet.
-                </div>
               ) : (
-                historySales.map((sale) => {
-                  const isDuePayment = sale.items.length === 0 && parseFloat(sale.total_amount) === 0;
-                  return (
-                    <div key={sale.sale_id} className={`border rounded-xl p-4 space-y-3 ${isDuePayment ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
-                      {/* Sale Info Header */}
-                      <div className="flex justify-between items-center border-b border-slate-200/60 pb-2 text-xs">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold text-slate-800">Sale #{sale.sale_id}</span>
-                          <span className="text-slate-300">|</span>
-                          <span className="text-slate-500">
-                            {new Date(sale.created_at).toLocaleString()}
-                          </span>
-                          {isDuePayment && (
-                            <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-emerald-200">
-                              Due Payment
-                            </span>
-                          )}
-                        </div>
-                        <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
-                          {sale.payment_method.replace('_', ' ')}
-                        </span>
-                      </div>
+                (() => {
+                  const searchTerm = (historyProductSearch || '').trim().toLowerCase();
+                  const filtered = searchTerm
+                    ? historySales.filter(sale => sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm)))
+                    : historySales;
 
-                      {isDuePayment ? (
-                        /* Due Payment Display */
-                        <div className="flex items-center justify-between py-2">
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-16 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        No purchases match the product search.
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((sale) => {
+                    const isDuePayment = sale.items.length === 0 && parseFloat(sale.total_amount) === 0;
+                    return (
+                      <div key={sale.sale_id} className={`border rounded-xl p-4 space-y-3 ${isDuePayment ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                        {/* Sale Info Header */}
+                        <div className="flex justify-between items-center border-b border-slate-200/60 pb-2 text-xs">
                           <div className="flex items-center space-x-2">
-                            <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                            <span className="text-sm font-semibold text-emerald-800">Due Balance Payment Collected</span>
+                            <span className="font-bold text-slate-800">Sale #{sale.sale_id}</span>
+                            <span className="text-slate-300">|</span>
+                            <span className="text-slate-500">
+                              {new Date(sale.created_at).toLocaleString()}
+                            </span>
+                            {isDuePayment && (
+                              <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase border border-emerald-200">
+                                Due Payment
+                              </span>
+                            )}
                           </div>
-                          <span className="text-lg font-extrabold text-emerald-700">৳{parseFloat(sale.final_amount).toFixed(2)}</span>
+                          <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
+                            {sale.payment_method.replace('_', ' ')}
+                          </span>
                         </div>
-                      ) : (
-                        /* Normal Sale Items Table */
-                        <>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="text-slate-400 font-semibold border-b border-slate-200/40">
-                                  <th className="pb-1.5">Product Description</th>
-                                  <th className="pb-1.5 text-center">Qty</th>
-                                  <th className="pb-1.5 text-right">Unit Price</th>
-                                  <th className="pb-1.5 text-right">Subtotal</th>
-                                  <th className="pb-1.5 text-right">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 text-slate-700">
-                                {sale.items.map((item) => (
-                                  <React.Fragment key={item.item_id}>
-                                    <tr>
-                                      <td className="py-1.5 font-medium">{item.product_name}</td>
-                                      <td className="py-1.5 text-center">{item.quantity}</td>
-                                      <td className="py-1.5 text-right">৳{parseFloat(item.unit_price).toFixed(2)}</td>
-                                      <td className="py-1.5 text-right font-semibold">৳{parseFloat(item.subtotal).toFixed(2)}</td>
-                                      <td className="py-1.5 text-right">
-                                        {parseInt(item.returnable_quantity || 0, 10) > 0 ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => openReturnForm(sale, item)}
-                                            className="text-amber-600 hover:text-amber-800 font-semibold text-[11px] border border-amber-200 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors"
-                                          >
-                                            Return ({item.returnable_quantity})
-                                          </button>
-                                        ) : (
-                                          <span className="text-slate-400 text-[11px] font-medium">Returned</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                    {activeReturnItem?.item?.item_id === item.item_id && (
-                                      <tr className="bg-amber-50/70">
-                                        <td colSpan="5" className="py-2 px-2">
-                                          <form onSubmit={handleReturnSubmit} className="rounded-xl border border-amber-200 bg-white/80 p-3 space-y-3">
-                                            <div className="flex flex-col md:flex-row md:items-end gap-3">
-                                              <div className="flex-1">
-                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Quantity</label>
-                                                <input
-                                                  type="number"
-                                                  min="1"
-                                                  max={parseInt(item.returnable_quantity || 0, 10)}
-                                                  value={returnForm.quantity}
-                                                  onChange={(e) => setReturnForm(prev => ({ ...prev, quantity: e.target.value }))}
-                                                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
-                                                />
-                                              </div>
-                                              <div className="flex-1">
-                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Refund Amount</label>
-                                                <input
-                                                  type="number"
-                                                  step="0.01"
-                                                  min="0"
-                                                  value={returnForm.refund_amount}
-                                                  onChange={(e) => setReturnForm(prev => ({ ...prev, refund_amount: e.target.value }))}
-                                                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
-                                                />
-                                              </div>
-                                              <div className="flex-1">
-                                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Notes</label>
-                                                <input
-                                                  type="text"
-                                                  value={returnForm.notes}
-                                                  onChange={(e) => setReturnForm(prev => ({ ...prev, notes: e.target.value }))}
-                                                  placeholder="Optional reason"
-                                                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
-                                                />
-                                              </div>
-                                            </div>
-                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                              <label className="flex items-center gap-2 text-sm text-slate-600">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={returnForm.deduct_from_due}
-                                                  onChange={(e) => setReturnForm(prev => ({ ...prev, deduct_from_due: e.target.checked }))}
-                                                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                                                />
-                                                Deduct refund from customer due balance
-                                              </label>
-                                              <div className="flex items-center gap-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={resetReturnForm}
-                                                  className="px-3 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-                                                >
-                                                  Cancel
-                                                </button>
-                                                <button
-                                                  type="submit"
-                                                  disabled={returning}
-                                                  className="px-3 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 rounded-lg"
-                                                >
-                                                  {returning ? 'Saving...' : 'Save Return'}
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </form>
+
+                        {isDuePayment ? (
+                          /* Due Payment Display */
+                          <div className="flex items-center justify-between py-2">
+                            <div className="flex items-center space-x-2">
+                              <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                              <span className="text-sm font-semibold text-emerald-800">Due Balance Payment Collected</span>
+                            </div>
+                            <span className="text-lg font-extrabold text-emerald-700">৳{parseFloat(sale.final_amount).toFixed(2)}</span>
+                          </div>
+                        ) : (
+                          /* Normal Sale Items Table */
+                          <>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="text-slate-400 font-semibold border-b border-slate-200/40">
+                                    <th className="pb-1.5">Product Description</th>
+                                    <th className="pb-1.5 text-center">Qty</th>
+                                    <th className="pb-1.5 text-right">Unit Price</th>
+                                    <th className="pb-1.5 text-right">Subtotal</th>
+                                    <th className="pb-1.5 text-right">Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {sale.items.map((item) => (
+                                    <React.Fragment key={item.item_id}>
+                                      <tr>
+                                        <td className="py-1.5 font-medium">{item.product_name}</td>
+                                        <td className="py-1.5 text-center">{item.quantity}</td>
+                                        <td className="py-1.5 text-right">৳{parseFloat(item.unit_price).toFixed(2)}</td>
+                                        <td className="py-1.5 text-right font-semibold">৳{parseFloat(item.subtotal).toFixed(2)}</td>
+                                        <td className="py-1.5 text-right">
+                                          {parseInt(item.returnable_quantity || 0, 10) > 0 ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => openReturnForm(sale, item)}
+                                              className="text-amber-600 hover:text-amber-800 font-semibold text-[11px] border border-amber-200 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors"
+                                            >
+                                              Return ({item.returnable_quantity})
+                                            </button>
+                                          ) : (
+                                            <span className="text-slate-400 text-[11px] font-medium">Returned</span>
+                                          )}
                                         </td>
                                       </tr>
-                                    )}
-                                  </React.Fragment>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {/* Sale Summary Footer */}
-                          <div className="flex justify-end pt-2 border-t border-slate-200/40">
-                            <div className="w-48 text-xs space-y-1">
-                              <div className="flex justify-between text-slate-500">
-                                <span>Subtotal:</span>
-                                <span>৳{parseFloat(sale.total_amount).toFixed(2)}</span>
-                              </div>
-                              {parseFloat(sale.discount) > 0 && (
-                                <div className="flex justify-between text-rose-500">
-                                  <span>Discount:</span>
-                                  <span>-৳{parseFloat(sale.discount).toFixed(2)}</span>
-                                </div>
-                              )}
-                              <div className="flex justify-between text-slate-500">
-                                <span>Tax:</span>
-                                <span>৳{parseFloat(sale.tax).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1 text-sm">
-                                <span>Paid:</span>
-                                <span className="text-emerald-600">৳{parseFloat(sale.paid_amount !== undefined ? sale.paid_amount : sale.final_amount).toFixed(2)}</span>
-                              </div>
-                              {parseFloat(sale.due_amount || 0) > 0 && (
-                                <div className="flex justify-between font-semibold text-rose-600 text-xs">
-                                  <span>Due Balance:</span>
-                                  <span>৳{parseFloat(sale.due_amount).toFixed(2)}</span>
-                                </div>
-                              )}
+                                      {activeReturnItem?.item?.item_id === item.item_id && (
+                                        <tr className="bg-amber-50/70">
+                                          <td colSpan="5" className="py-2 px-2">
+                                            <form onSubmit={handleReturnSubmit} className="rounded-xl border border-amber-200 bg-white/80 p-3 space-y-3">
+                                              <div className="flex flex-col md:flex-row md:items-end gap-3">
+                                                <div className="flex-1">
+                                                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Quantity</label>
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    max={parseInt(item.returnable_quantity || 0, 10)}
+                                                    value={returnForm.quantity}
+                                                    onChange={(e) => setReturnForm(prev => ({ ...prev, quantity: e.target.value }))}
+                                                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
+                                                  />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Refund Amount</label>
+                                                  <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={returnForm.refund_amount}
+                                                    onChange={(e) => setReturnForm(prev => ({ ...prev, refund_amount: e.target.value }))}
+                                                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
+                                                  />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Notes</label>
+                                                  <input
+                                                    type="text"
+                                                    value={returnForm.notes}
+                                                    onChange={(e) => setReturnForm(prev => ({ ...prev, notes: e.target.value }))}
+                                                    placeholder="Optional reason"
+                                                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-amber-500 outline-none"
+                                                  />
+                                                </div>
+                                              </div>
+                                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                <label className="flex items-center gap-2 text-sm text-slate-600">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={returnForm.deduct_from_due}
+                                                    onChange={(e) => setReturnForm(prev => ({ ...prev, deduct_from_due: e.target.checked }))}
+                                                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                                  />
+                                                  Deduct refund from customer due balance
+                                                </label>
+                                                <div className="flex items-center gap-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={resetReturnForm}
+                                                    className="px-3 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                  <button
+                                                    type="submit"
+                                                    disabled={returning}
+                                                    className="px-3 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 rounded-lg"
+                                                  >
+                                                    {returning ? 'Saving...' : 'Save Return'}
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </form>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })
+
+                            {/* Sale Summary Footer */}
+                            <div className="flex justify-end pt-2 border-t border-slate-200/40">
+                              <div className="w-48 text-xs space-y-1">
+                                <div className="flex justify-between text-slate-500">
+                                  <span>Subtotal:</span>
+                                  <span>৳{parseFloat(sale.total_amount).toFixed(2)}</span>
+                                </div>
+                                {parseFloat(sale.discount) > 0 && (
+                                  <div className="flex justify-between text-rose-500">
+                                    <span>Discount:</span>
+                                    <span>-৳{parseFloat(sale.discount).toFixed(2)}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between text-slate-500">
+                                  <span>Tax:</span>
+                                  <span>৳{parseFloat(sale.tax).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-slate-800 border-t border-slate-200 pt-1 text-sm">
+                                  <span>Paid:</span>
+                                  <span className="text-emerald-600">৳{parseFloat(sale.paid_amount !== undefined ? sale.paid_amount : sale.final_amount).toFixed(2)}</span>
+                                </div>
+                                {parseFloat(sale.due_amount || 0) > 0 && (
+                                  <div className="flex justify-between font-semibold text-rose-600 text-xs">
+                                    <span>Due Balance:</span>
+                                    <span>৳{parseFloat(sale.due_amount).toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  });
+                })()
               )}
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); }}
+                onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
               >
                 Close History
@@ -1404,16 +1426,24 @@ export default function Customers() {
           </div>
 
           {/* Purchases List */}
-          <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
-            Transaction Records ({historySales.length} sales)
-          </h3>
+          {(() => {
+            const searchTerm = (historyProductSearch || '').trim().toLowerCase();
+            const filtered = searchTerm
+              ? historySales.filter(sale => sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm)))
+              : historySales;
 
-          {historySales.length === 0 ? (
-            <p style={{ color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>No transaction history found for this customer.</p>
-          ) : (
-            <div style={{ spaceY: '20px' }}>
-              {historySales.map((sale) => (
-                <div key={sale.sale_id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '16px', pageBreakInside: 'avoid' }}>
+            return (
+              <>
+                <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', marginBottom: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  Transaction Records ({filtered.length} sales)
+                </h3>
+
+                {filtered.length === 0 ? (
+                  <p style={{ color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>No transaction history found for this customer.</p>
+                ) : (
+                  <div style={{ spaceY: '20px' }}>
+                    {filtered.map((sale) => (
+                      <div key={sale.sale_id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '16px', pageBreakInside: 'avoid' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
                     <span>Transaction #{sale.sale_id} - {new Date(sale.created_at).toLocaleString()}</span>
                     <span>Method: {sale.payment_method.toUpperCase()}</span>
@@ -1480,13 +1510,16 @@ export default function Customers() {
               ))}
             </div>
           )}
+        </>
+      )
+    })()}
 
           {/* Report Footer */}
           <div style={{ borderTop: '2px solid #cbd5e1', paddingTop: '10px', marginTop: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
             <p style={{ margin: '0' }}>End of Purchase History Report for {historyCustomer.name}.</p>
-          </div>
+          </div> 
         </div>,
-        document.body
+        document.body 
       )}
     </div>
   );

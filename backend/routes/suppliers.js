@@ -108,6 +108,57 @@ router.get('/cost-price-logs', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/suppliers/cost-price-logs/export/csv
+ * @desc    Export all cost price logs as CSV file
+ */
+router.get('/cost-price-logs/export/csv', authorize(['shop_admin']), async (req, res) => {
+  const shopId = req.shopId;
+  try {
+    const [logs] = await db.query(
+      `SELECT cpl.id, cpl.created_at, cpl.old_cost_price, cpl.new_cost_price, cpl.reason,
+              p.name AS product_name, p.sku AS product_sku, s.name AS supplier_name
+       FROM cost_price_logs cpl
+       JOIN products p ON cpl.product_id = p.id
+       LEFT JOIN suppliers s ON cpl.supplier_id = s.id
+       WHERE cpl.shop_id = ?
+       ORDER BY cpl.created_at DESC`,
+      [shopId]
+    );
+
+    if (logs.length === 0) {
+      return res.status(404).json({ error: 'No cost price logs found to export.' });
+    }
+
+    // Generate CSV content
+    const headers = ['Log ID', 'Date', 'Product Name', 'Product SKU', 'Supplier Name', 'Old Cost Price', 'New Cost Price', 'Reason'];
+    const csvRows = [headers.join(',')];
+
+    logs.forEach(log => {
+      const row = [
+        log.id,
+        log.created_at ? log.created_at.split('T')[0] : '',
+        `"${(log.product_name || '').replace(/"/g, '""')}"`,
+        `"${(log.product_sku || '').replace(/"/g, '""')}"`,
+        `"${(log.supplier_name || '').replace(/"/g, '""')}"`,
+        log.old_cost_price || 0,
+        log.new_cost_price || 0,
+        `"${(log.reason || '').replace(/"/g, '""')}"`
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="cost_price_logs_export_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'Server error exporting cost price logs to CSV.' });
+  }
+});
+
+/**
  * @route   GET /api/suppliers/purchase-orders/export/csv
  * @desc    Export all purchase orders as CSV file
  */

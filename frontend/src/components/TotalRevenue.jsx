@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -148,6 +150,102 @@ export default function TotalRevenue() {
     triggerAlert('success', 'Financial report exported successfully!');
   };
 
+  const exportToPDF = () => {
+    if (!revenueData) {
+      triggerAlert('error', 'No financial data to export.');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF();
+      const selectedShop = shops.find(s => String(s.id) === String(selectedShopId));
+      const shopName = selectedShop ? selectedShop.name : 'All Shops';
+      const startStr = startDate ? formatDate(startDate) : 'All Time';
+      const endStr = endDate ? formatDate(endDate) : 'All Time';
+
+      // Title
+      doc.setFontSize(18);
+      doc.text('Financial Report - Total Revenue & Profits', 14, 20);
+      doc.setFontSize(10);
+      doc.text(`Shop: ${shopName}`, 14, 28);
+      doc.text(`Period: ${startStr} to ${endStr}`, 14, 34);
+
+      // Main Financial Data Table
+      const tableData = [
+        ['Sales Revenue (Accrual)', formatCurrency(revenueData.sales_revenue), 'Inflow'],
+        ['Sales Revenue (Cash Collected)', formatCurrency(revenueData.sales_cash_received), 'Inflow'],
+        ['Customer Due Balance (Receivable)', formatCurrency(revenueData.customer_due || 0), 'Inflow'],
+        ['Customer Returns', formatCurrency(revenueData.customer_returns || 0), 'Outflow'],
+        ['Cost of Goods Sold (COGS)', formatCurrency(revenueData.cost_of_goods_sold), 'Outflow'],
+        ['Product Purchasing Cost (Accrual)', formatCurrency(revenueData.inventory_purchasing_cost), 'Outflow'],
+        ['Product Purchasing Cost (Cash Paid)', formatCurrency(revenueData.inventory_purchasing_cash_paid), 'Outflow'],
+        ['Supplier Credit (Owed)', formatCurrency(revenueData.supplier_due || 0), 'Outflow'],
+        ['Other Costs', formatCurrency(revenueData.other_costs), 'Outflow'],
+        ['Wastage & Damage Loss', formatCurrency(revenueData.wastage_loss || 0), 'Outflow'],
+        ['Manual Sales Orders (Confirmed)', formatCurrency(revenueData.manual_orders?.confirmed_value || 0), 'Inflow'],
+        ['Manual Sales Orders (Pending)', formatCurrency(revenueData.manual_orders?.pending_value || 0), 'Pending']
+      ];
+
+      autoTable(doc, {
+        head: [['Financial Indicator', 'Amount', 'Category']],
+        body: tableData,
+        startY: 42,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 35, halign: 'right' },
+          2: { cellWidth: 25, halign: 'center' }
+        },
+        margin: { top: 42, right: 10, bottom: 20, left: 10 }
+      });
+
+      // Net Profit Summary
+      const summaryY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('Net Profit Summary', 14, summaryY);
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+
+      const summaryData = [
+        ['Net Profit (Cashflow Basis)', formatCurrency(revenueData.net_profit_cashflow)],
+        ['Net Profit (COGS Margin Basis)', formatCurrency(revenueData.net_profit_cogs)]
+      ];
+
+      const summaryHeadColor = revenueData.net_profit_cashflow >= 0 ? [16, 185, 129] : [239, 68, 68];
+
+      autoTable(doc, {
+        head: [['Metric', 'Amount']],
+        body: summaryData,
+        startY: summaryY + 5,
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: summaryHeadColor, textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 35, halign: 'right' }
+        },
+        margin: { top: summaryY + 5, right: 10, bottom: 20, left: 10 }
+      });
+
+      // Footer
+      const footerY = doc.lastAutoTable.finalY + 15;
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('Generated on: ' + new Date().toLocaleString(), 14, footerY);
+
+      const shopNameSlug = selectedShop ? selectedShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') : 'all_shops';
+      const startSlug = startDate ? startDate : 'all-time';
+      const endSlug = endDate ? endDate : 'all-time';
+      doc.save(`financial_report_${shopNameSlug}_${startSlug}_to_${endSlug}.pdf`);
+
+      triggerAlert('success', 'Financial report PDF exported successfully!');
+    } catch (err) {
+      triggerAlert('error', 'Failed to generate PDF.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Alert Alert Banner */}
@@ -164,7 +262,7 @@ export default function TotalRevenue() {
           <h2 className="text-2xl font-bold text-slate-800">Total Revenue & Profits</h2>
           <p className="text-sm text-slate-500">Comprehensive overview of sales, buying costs, operational costs, and profitability analysis</p>
         </div>
-        <div>
+        <div className="flex items-center space-x-3">
           <button
             onClick={exportToCSV}
             disabled={loading || !revenueData}
@@ -173,7 +271,17 @@ export default function TotalRevenue() {
             <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <span>Download Financial Report</span>
+            <span>CSV</span>
+          </button>
+          <button
+            onClick={exportToPDF}
+            disabled={loading || !revenueData}
+            className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-5 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span>PDF</span>
           </button>
         </div>
       </div>

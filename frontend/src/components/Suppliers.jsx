@@ -862,6 +862,74 @@ export default function Suppliers() {
     }
   };
 
+  const handleDownloadCostLogsCSV = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers/cost-price-logs/export/csv`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download CSV.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cost_price_logs_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      triggerAlert('success', 'CSV downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const handleDownloadCostLogsPDF = () => {
+    try {
+      if (costLogs.length === 0) {
+        triggerAlert('error', 'No cost price logs to export.');
+        return;
+      }
+
+      const doc = new jsPDF();
+      const tableData = costLogs.map(log => [
+        log.id,
+        log.created_at ? log.created_at.split('T')[0] : '-',
+        log.product_name || '-',
+        log.product_sku || '-',
+        log.supplier_name || '-',
+        formatCurrency(log.old_cost_price || 0),
+        formatCurrency(log.new_cost_price || 0),
+        log.reason || '-'
+      ]);
+
+      autoTable(doc, {
+        head: [['Log ID', 'Date', 'Product Name', 'Product SKU', 'Supplier', 'Old Cost', 'New Cost', 'Reason']],
+        body: tableData,
+        startY: 25,
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        margin: { top: 25, right: 10, bottom: 20, left: 10 }
+      });
+
+      doc.setFontSize(16);
+      doc.text('Cost Price Logs', 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Total Logs: ${costLogs.length}`, 14, doc.lastAutoTable.finalY + 10);
+
+      doc.save(`cost_price_logs_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      triggerAlert('success', 'PDF downloaded successfully!');
+    } catch (err) {
+      triggerAlert('error', 'Failed to generate PDF.');
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'draft':
@@ -1921,6 +1989,26 @@ export default function Suppliers() {
 
         return (
           <div className="space-y-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-end gap-3 shadow-xs">
+              <button
+                onClick={handleDownloadCostLogsCSV}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>CSV</span>
+              </button>
+              <button
+                onClick={handleDownloadCostLogsPDF}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span>PDF</span>
+              </button>
+            </div>
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">

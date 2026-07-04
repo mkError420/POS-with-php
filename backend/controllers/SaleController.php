@@ -349,14 +349,14 @@ class SaleController {
 
         try {
             $stmt = DB::query(
-                `SELECT s.*, u.name as staff_name, 
+                "SELECT s.*, u.name as staff_name, 
                         c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
                         sh.name as shop_name, sh.phone as shop_phone, sh.address as shop_address, sh.email as shop_email
                  FROM sales s
                  LEFT JOIN users u ON s.user_id = u.id
                  LEFT JOIN customers c ON s.customer_id = c.id
                  LEFT JOIN shops sh ON s.shop_id = sh.id
-                 WHERE s.id = ? AND s.shop_id = ?`,
+                 WHERE s.id = ? AND s.shop_id = ?",
                 [$saleId, $shopId]
             );
             $sale = $stmt->fetch();
@@ -381,10 +381,10 @@ class SaleController {
 
             // Fetch sale items
             $stmt = DB::query(
-                `SELECT si.*, p.name as product_name, p.sku as product_sku, p.cost_price 
+                "SELECT si.*, p.name as product_name, p.sku as product_sku, p.cost_price 
                  FROM sale_items si
                  JOIN products p ON si.product_id = p.id
-                 WHERE si.sale_id = ? AND si.shop_id = ?`,
+                 WHERE si.sale_id = ? AND si.shop_id = ?",
                 [$saleId, $shopId]
             );
             $items = $stmt->fetchAll();

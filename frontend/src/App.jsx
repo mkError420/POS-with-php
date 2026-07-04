@@ -213,14 +213,14 @@ export default function App() {
     if (user.role === 'super_admin') {
       switch (currentPath) {
         case '/dashboard': return <Dashboard />;
-        case '/shops':     return <ManageShops />;
-        case '/users':     return <SystemUsers />;
-        case '/products':  return <Inventory />;
-        case '/wastage':   return <Wastage />;
+        case '/shops': return <ManageShops />;
+        case '/users': return <SystemUsers />;
+        case '/products': return <Inventory />;
+        case '/wastage': return <Wastage />;
         case '/other-cost': return <OtherCost />;
         case '/total-revenue': return <TotalRevenue />;
-        case '/settings':  return <Settings />;
-        default:           return <Dashboard />;
+        case '/settings': return <Settings />;
+        default: return <Dashboard />;
       }
     }
 
@@ -251,20 +251,20 @@ export default function App() {
 
     switch (currentPath) {
       case '/dashboard': return <Dashboard />;
-      case '/checkout':  return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
+      case '/checkout': return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
       case '/held-bills': return <HeldBills onResume={(bill) => { setResumedHeldBill(bill); setCurrentPath('/checkout'); }} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
-      case '/products':  return <Inventory />;
+      case '/products': return <Inventory />;
       case '/suppliers': return <Suppliers />;
       case '/customers': return <Customers />;
-      case '/sales':     return <SalesHistory />;
+      case '/sales': return <SalesHistory />;
       case '/manual-orders': return <ManualOrders />;
       case '/other-cost': return <OtherCost />;
       case '/total-revenue': return <TotalRevenue />;
       case '/wastage': return <Wastage />;
-      case '/returns':   return <Returns />;
-      case '/staff':     return <ManageStaff />;
-      case '/settings':  return <Settings />;
-      default:           return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
+      case '/returns': return <Returns />;
+      case '/staff': return <ManageStaff />;
+      case '/settings': return <Settings />;
+      default: return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
     }
   };
 
